@@ -1,0 +1,2260 @@
+#!/bin/sh
+# the next line restarts using wish \
+exec wish "$0" "$@"
+
+# Dom Gen 17 20:24:18 CET 2010
+#
+# Permission to use, copy, and distribute this software for any purpose
+# with or without fee is hereby granted, provided that the above copyright
+# notice appear in all copies.
+#
+# Permission to modify the software is granted, provided you
+#   1. add special version identification to distinguish your version
+#    in addition to the base release version number,
+#   2. provide your name and address as the primary contact for the
+#    support of your modified version, and
+#   3. retain our contact information in regard to use of the base
+#    software.
+#
+# This software is provided "as is" without express or implied warranty
+# to the extent permitted by applicable law.
+#
+# AUTHORS
+#
+#   Original Software (February - 2008):
+#     Tommaso Vinci (tommaso.vinci@polytechnique.edu)
+#   under the lovely supervision of his lovely muse:
+#     Susanna Vergani (susilandia@gmail.com)
+
+proc putin {file} {
+  global $file
+  set f [open [set $file] w]
+  puts -nonewline $f [.$file.text.text get 1.0 end-1c]
+  close $f
+  load$file
+  schiaccia .disegna
+}
+
+proc commenta {file} {
+  set char "[lindex [split [.$file.text.text index insert] . ] 0].0"
+  if {[.$file.text.text get $char] == "#"} {
+    .$file.text.text delete $char
+  } else {
+    .$file.text.text insert $char "#"
+  }
+}
+
+proc editit {file} {
+  global $file
+  catch "destroy .$file"
+  toplevel .$file
+  frame .$file.text
+  text .$file.text.text -yscrollcommand ".$file.text.scroll set" -setgrid true -undo 1 -autosep 1 -font {Courier 12} -width 20 -height 20
+  scrollbar .$file.text.scroll -command ".$file.text.text yview"
+  pack .$file.text.scroll -side right -fill y
+  pack .$file.text.text -expand yes -fill both
+  pack .$file.text -expand yes -fill both
+  button .$file.save -text "Save & Draw" -command "putin $file"
+  pack .$file.save -fill x
+
+  .$file.text.text delete 0.0 end
+  set f [open [set $file]]
+  while {! [eof $f]} {
+    set linea [gets $f]
+    .$file.text.text insert end "$linea\n"
+  }
+  bind .$file.text.text <Control-c> "commenta $file"
+  close $f
+}
+
+proc esciblocconote {} {
+  .blocco.menu.file invoke 2
+  destroy .blocco
+}
+
+proc blocconote {} {
+  global filenote
+  catch {destroy .blocco}
+  toplevel .blocco
+  wm protocol .blocco WM_DELETE_WINDOW { esciblocconote }
+  wm title .blocco "IDENTIFICA notepad"
+  wm iconname .blocco "IPP note"
+  frame .blocco.text
+  pack .blocco.text -expand yes -fill both
+  text .blocco.text.text -yscrollcommand ".blocco.text.scroll set" -setgrid true -undo 1 -autosep 1 -font {Courier 12} -width 50 -height 20
+  scrollbar .blocco.text.scroll -command ".blocco.text.text yview"
+  pack .blocco.text.scroll -side right -fill y
+  pack .blocco.text.text -expand yes -fill both
+
+  label .blocco.stato -relief groove -font {Helvetica 10} -textvariable stato -justify left -anchor w
+  pack .blocco.stato -fill x  -anchor s -side bottom
+
+  menu .blocco.menu -relief raised
+  .blocco.menu add cascade -label "File" -underline 0 -menu .blocco.menu.file
+  menu .blocco.menu.file -tearoff 0
+  .blocco.menu.file add command -label "Open \[Ctrl-o\]" -underline 0 -command {
+    set stato "Opening file"
+    set types {{"Notepad" {.note.txt .csv .txt}} {"All files" *}}
+    if {[set filetmp [tk_getOpenFile -filetypes $types -initialdir .bloccoorkdir -initialfile "$filenote" -parent .blocco]] == ""} {
+      set stato "Opening cancelled"
+      return
+    }
+    set filenote [file tail $filetmp]
+    .blocco.menu.file invoke 3
+  }
+
+  .blocco.menu.file add command -label "Save \[Ctrl-s\]" -underline 0 -command {
+    set f [open $filenote w]
+    puts -nonewline $f [.blocco.text.text get 1.0 end-1c]
+    close $f
+    set stato "File saved: $filenote"
+    wm title .blocco "IDENTIFICA notepad - $filenote"
+  }
+  .blocco.menu.file add command -label "Save As" -underline 5 -command {
+    set stato "Saving file"
+    set types {{"IDENTIFICA notepad" {.note.csv .txt .csv}} {"All files" *}}
+    if {[set filetmp [tk_getSaveFile -filetypes $types -initialfile "$filenote" -parent .blocco]] != ""} {
+      set filenote [file tail $filetmp]
+      .blocco.menu.file invoke 1
+    } else {set stato "File not saved"}
+  }
+  .blocco.menu.file add command -label "Revert \[Ctrl-r\]" -underline 0 -command {
+    set f [open $filenote]
+    .blocco.text.text delete 0.0 end
+    while {! [eof $f]} {
+      set linea [gets $f]
+      .blocco.text.text insert end "$linea\n"
+    }
+    close $f
+    set stato "File loaded $filenote"
+    wm title .blocco "IDENTIFICA notepad - $filenote"
+  }
+  .blocco.menu.file add separator
+  .blocco.menu.file add command -label "Close \[Ctrl-q\]" -underline 0 -command { esciblocconote }
+
+  .blocco.menu add command -label "Cut" -command {tk_textCut .blocco.text.text}
+  .blocco.menu add command -label "Copy" -command {tk_textCopy .blocco.text.text}
+  .blocco.menu add command -label "Paste" -command {tk_textPaste .blocco.text.text}
+  bind .blocco <Control-x> {tk_textCut .blocco.text.text}
+  bind .blocco <Control-c> {tk_textCopy .blocco.text.text}
+  bind .blocco <Control-v> {tk_textPaste .blocco.text.text}
+
+  .blocco configure -menu .blocco.menu
+
+  bind .blocco <Control-o> {.blocco.menu.file invoke 0}
+  bind .blocco <Control-s> {.blocco.menu.file invoke 1}
+  bind .blocco <Control-r> {.blocco.menu.file invoke 3}
+  bind .blocco <Control-i> {.blocco.menu.file invoke 4}
+  bind .blocco <Control-q> {.blocco.menu.file invoke 6}
+  bind .blocco <Control-e> {.blocco.menu.run invoke 3}
+  if {[file exists $filenote]} {.blocco.menu.file invoke 3}
+  bind .blocco.text.text <Key> {set stato "[.blocco.text.text index insert]"}
+  bind Text <Button-2> {
+    catch {.blocco.text.text insert end "[selection get]\n"}
+    selection clear
+  }
+
+}
+
+proc esci {} {
+  global gnuplot gnuplot2 env realfileipp
+  set uscita [tk_dialog .quit "Exit confirm" "Do you really want to exit?" question 0 "No" "Yes" "Save & Exit" "Save As & Exit"]
+  switch -exact -- $uscita {
+    0 {return}
+    2 {.menu.file invoke 1}
+    3 {.menu.file invoke 2}
+  }
+  catch {close gnuplot}
+  catch {close gnuplot2}
+  set realfileipp "$env(HOME)/.identifica.ipp"
+  .menu.file invoke 1
+  exit
+}
+
+proc schiaccia {bottone} {
+  $bottone configure -relief sunken
+  $bottone invoke
+  after 100 $bottone configure -relief raised
+}
+
+
+proc disegna {} {
+  global gnuplot grid dimension_bitmap fonttype fontsize terminal linewidth
+  global xlabel ylabel title
+  global autoranges xmin xmax ymin ymax
+  global offset intensity position fwhm
+  global mean spline splineorder
+
+  foreach i {1 2 3} {
+    global  drawfiledat$i realfiledat$i filedat$i colorfiledat$i using$i
+  }
+  
+  catch {.blocco.menu.file invoke 1}
+
+
+  if {$autoranges} {
+    set xmin "*"
+    set xmax "*"
+    set ymin "*"
+    set ymax "*"
+  }
+
+  foreach i {x y} {
+    global format$i
+    if {[set format${i}] != ""} {sendcommand  "set format $i '[set format${i}]'"}
+  }
+
+  foreach i {mouse} {
+    global format$i
+    if {[set format${i}] != ""} {
+      sendcommand  "set $i format '[set format${i}]'"
+      sendcommand  "set $i ${i}format '[set format${i}],[set format${i}]'"
+    }
+  }
+
+  sendcommand  "set mouse; set terminal $terminal enhanced font \'$fonttype\'"
+
+  if {$xlabel != ""} {
+    sendcommand  "set xlabel \"$xlabel\""
+  } else {
+    sendcommand  "set xlabel \"Angstrom\""
+  }
+  if {$ylabel != ""} {
+    sendcommand  "set ylabel \"$ylabel\""
+  } else {
+    sendcommand  "set ylabel \"Arbitrary Units\""
+  }
+  if {$title != ""} {
+    sendcommand  "set title \"$title\""
+  } else {
+    sendcommand "set title \"$filedat1 $filedat2 $filedat3\""
+  }
+
+  sendcommand  "set xrange \[$xmin:$xmax\] noreverse"
+  sendcommand  "set yrange \[$ymin:$ymax\] noreverse"
+
+  set col_temp ""
+  if {$grid} {sendcommand  "set grid front"} else {sendcommand  "unset grid"}
+
+  set command ""
+
+  sendcommand  [.variabili.estrai.text.gpcommand get 1.0 end]
+  global orderspline
+  sendcommand  "set samples $orderspline"
+  set numplots 0
+  foreach i {1 2 3} {
+    if {[set filedat$i] != ""} {
+      if {[set drawfiledat$i]} {
+        if {[set using$i] != ""} {set col_temp "using [set using$i]"}
+        if {$numplots == 0} {set command "plot "} else {set command "$command ,"}
+        incr numplots
+        if {$mean} {
+          set command "$command '[set realfiledat$i]_mean'"
+        } else {
+          set command "$command '[set realfiledat$i]'"
+        }
+        if {$spline} {
+          set command "$command $col_temp notitle with lines lw $linewidth smooth cspline lc rgb \"[set colorfiledat$i]\""
+        } else {
+          global with
+          set command "$command $col_temp notitle with $with lw $linewidth lc rgb \"[set colorfiledat$i]\""
+        }
+      }
+    }
+  }
+  global skyline systems redshift
+  global realskyline realsystems realredshift
+  global drawskyline drawsystems
+
+  if {$drawskyline && $xmin != "*" && $xmax != "*" && $ymin != "*" && $ymax != "*"} {
+    set yvect [expr $ymax - 0.05*($ymax - $ymin)]
+    set dyvec [expr -0.88*($ymax - $ymin)]
+    set command "$command, '$skyline' u 1:($yvect):(0):($dyvec) title \"Sky\" with vect lc rgb \"skyblue\""
+  }
+  set counter 0
+
+  if {$drawsystems} {
+    global vred
+    foreach red "$vred" {
+      if {$drawsystems && $xmin != "*" && $xmax != "*" && $ymin != "*" && $ymax != "*"} {
+        set yname [expr $ymax-0.15*($ymax - $ymin)]
+        set yvect [expr $ymin + 0.05*($ymax - $ymin)]
+        set dyvec [expr 0.75*($ymax - $ymin)]
+        set realred [expr 1.0+$red]
+        set command "$command, '$realsystems' u (\$2*$realred):($yvect):(0):($dyvec) title \"$red\" with vect nohead ls [expr 1+($counter % 10)]"
+        set command "$command, '$realsystems' u (\$2*$realred):($yname):1 notitle with labels noenh font \",10\" rotate left tc ls [expr 1+($counter % 10)]"
+        incr counter
+      }
+    }
+  }
+
+  sendcommand  "f(x)=offset+intensity*exp(-2.773*((x-position)/fwhm)**2)"
+
+  if {$offset != "" && $intensity != "" && $position != "" && $fwhm != ""} {
+    sendcommand  "offset=$offset"
+    sendcommand  "intensity=$intensity"
+    sendcommand  "position=$position"
+    sendcommand  "fwhm=$fwhm"
+    set command "$command, f(x)"
+  }
+
+  global listafunc
+  foreach index "$listafunc" {
+    global fitfunc$index fituse$index
+    sendcommand "f${index}(x)=[set fitfunc$index]"
+    foreach i {c0f c1f c2f c3f} {
+      global fit${i}${index}
+      sendcommand "${i}${index}=[set fit${i}${index}]"
+    }
+    if {[set fituse$index]} {
+      set command "$command, f${index}(x) w l lw $linewidth"
+    }
+  }
+  global ruler rulerx rulery
+  .text.text insert end "\n$command\n"
+  .text.text see end
+  sendcommand "$command"
+  if {$autoranges} {
+    sendcommand  "print \"ranges s \",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX"
+  }
+#  if {$ruler} {sendcommand  "set mouse ruler at $rulerx, $rulery"}
+#  puts "cippa draw : $rulerx $rulery"
+#  sendcommand  "print \"cippa draw gnuplot \",MOUSE_RULER_X,MOUSE_RULER_Y"
+}
+
+
+proc updatelistaplot {which where lab1 val1 val2 countlinecolor} {
+  global xmin xmax title listaplot
+  set found [lsearch -exact $listaplot "$which $lab1 $val1 $val2 $countlinecolor"]
+  if {$found != -1} {
+    set listaplot [lreplace $listaplot $found $found]
+  } else {
+    lappend listaplot "$which $lab1 $val1 $val2 $countlinecolor"
+  }
+}
+
+proc zoomaround {where lab1 val1 val2 countlinecolor} {
+  global deltax xmin xmax title
+    if {$deltax!=""} {
+      if {[scan $deltax "%f:%f" xminloc xmaxloc]==2} {
+        set xmin [expr $where -$xminloc]
+        set xmax [expr $where +$xmaxloc]
+      } else {
+        set xmin [expr $where -$deltax]
+        set xmax [expr $where +$deltax]
+      }
+    }
+  set title "$lab1\($val1\) : $val2"
+  schiaccia .disegna
+}
+
+proc scrollAll {widgets direction args} {
+  foreach w $widgets {
+    eval $w $direction $args
+  }
+}
+
+proc drawme {how} {
+  global gnuplot2 listaplot deltax title linewidth
+  global deltax mean ymin ymax spline
+  set numplot [llength $listaplot]
+  puts $gnuplot2 "###########RESTART HERE################"
+
+  switch -- "$how" {
+    1 {puts $gnuplot2 "set term x11 enhanced title \"Velocity Plot\""
+         puts $gnuplot2 "set out"
+    }
+    2 {set types {{"PDF files" {.pdf}} {"All files" *}}
+       if {[set filetmp [tk_getSaveFile -filetypes $types -parent .makegrid]] != ""} {
+         global fontsize
+         puts $gnuplot2 "set terminal pdf enhanced fsize $fontsize linewidth $linewidth size 20cm,28cm"
+         puts $gnuplot2 "set out '$filetmp'"
+      } else {return}
+    }
+    3 {set types {{"PNG files" {.png}} {"All files" *}}
+       if {[set filetmp [tk_getSaveFile -filetypes $types -parent .makegrid]] != ""} {
+         global fontsize fonttype dimension_bitmap
+         puts $gnuplot2 "set terminal png enhanced notransparent font $fonttype $fontsize size $dimension_bitmap lw $linewidth"
+         puts $gnuplot2 "set output '$filetmp'"
+      } else {return}
+    }
+    4 {set types {{"Gnuplot files" {.gpl}} {"All files" *}}
+       if {[set filetmp [tk_getSaveFile -filetypes $types -parent .makegrid]] != ""} {
+         set gnuplot2old $gnuplot2
+         set gnuplot2 [ open "$filetmp" w+ ]
+         global fontsize
+         puts $gnuplot2 "# Uncomment next two lines to export in pdf"
+         puts $gnuplot2 "# set terminal pdf enhanced fsize $fontsize linewidth $linewidth size 20cm,28cm"
+         puts $gnuplot2 "# set out 'identifica-grid.pdf'"
+         puts $gnuplot2 "# Uncomment next line to plot in aquaterm"
+         puts $gnuplot2 "# set term aqua enhanced size $xsize $ysize font '$fonttype,$fontsize' title 'Velocity Plot' dashed"
+      } else {return}
+    }
+    5 { global fontsize fonttype dimension_bitmap
+        scan $dimension_bitmap "%d,%d" xsize ysize
+        puts $gnuplot2 "set term aqua enhanced size $xsize $ysize font '$fonttype,$fontsize' title 'Velocity Plot' dashed"
+         puts $gnuplot2 "set out"
+    }
+  }
+  puts $gnuplot2 {set tics out nomirror}
+  
+  puts $gnuplot2 {set tmargin 0}
+  puts $gnuplot2 {set bmargin 0}
+  puts $gnuplot2 {unset xlabel}
+  puts $gnuplot2 "set multiplot"
+  puts $gnuplot2 "set label 98 \"$title\" at screen 0.5,screen 0.95 center"
+  puts $gnuplot2 "set size 1,(0.8/$numplot)"
+  puts $gnuplot2 {set style line 1 lt -1 lw 1 lc rgb "black"}
+  puts $gnuplot2 {set style line 2 lt -1 lw 0.2 lc rgb "gray20"}
+  puts $gnuplot2 {unset title}
+  puts $gnuplot2 {unset grid}
+  puts $gnuplot2 {set format x ""}
+
+  global ylabel
+  if {$ylabel != ""} {
+    puts $gnuplot2 "set label 99 \"$ylabel\" rotate by 90 at screen 0.02,screen 0.5 center"
+  } else {
+    puts $gnuplot2 {set label 99 "Arbitrary units" rotate by 90 at screen 0.02,screen 0.5 center }
+  }
+
+  if {$how != 5} {
+    puts $gnuplot2 {set border lw 0.1}
+  } else {
+    puts $gnuplot2 {set border lw 1}
+  }
+  puts $gnuplot2 {set lmargin screen 0.1}
+  puts $gnuplot2 {unset ylabel}
+  puts $gnuplot2 {set xtics scale 0}
+  puts $gnuplot2 {unset key}
+  global ymin ymax
+  puts $gnuplot2 "set yrange \[$ymin:$ymax\] noreverse"
+  global evidenzia
+  if {$evidenzia != ""} {
+      puts $gnuplot2 "evi(x,a,b)=(x>a && x<b) ? x : 0/0"
+  }
+  if {$deltax!=""} {
+    if {[scan $deltax "%f:%f" xminloc xmaxloc]==2} {
+      puts $gnuplot2 "set xrange \[$xminloc:$xmaxloc\]"
+    } else {
+      puts $gnuplot2 "set xrange \[-$deltax:$deltax\]"
+    }
+  } else {
+    puts $gnuplot2 "set xrange \[*:*\]"
+  }
+
+  puts $gnuplot2 [.variabili.estrai.text.gpcommand get 1.0 end]
+  set counter 0
+  foreach i "$listaplot" {
+      incr counter
+      foreach {which lab1 lambda redshi countlinecolor} "$i" {
+          global filedat$which realfiledat$which using$which 
+          if {$mean} {
+            set filetoplot [set realfiledat${which}]_mean
+          } else {
+            set filetoplot [set realfiledat${which}]
+          }
+          if {$counter==$numplot} {
+              puts $gnuplot2 {set format x "%g"}
+              puts $gnuplot2 {set xlabel "Velocity [km/s]" offset screen 0, screen 0.01 }
+              puts $gnuplot2 {set xtics nomirror scale 1}
+          } elseif {$counter==1} {
+              puts $gnuplot2 {set border 15}
+          } elseif {$counter==2} {
+              puts $gnuplot2 {set border 11}
+          }
+          global relativistic
+          if {$relativistic} {
+            puts $gnuplot2 "z(l)=(l/$lambda)-1."
+            puts $gnuplot2 "v(l)=299792.458*((1.+z(l))**2-(1.+$redshi)**2)/((1.+$redshi)**2+(1.+z(l))**2)"
+          } else {
+            puts $gnuplot2 "v(l)=299792.458*((l-(1+$redshi)*$lambda)/((1+$redshi)*$lambda))"
+          }
+          set using ""
+          puts $gnuplot2 "set origin 0,0.92-(0.8*$counter)/$numplot"
+           if {$how != 5} {
+            puts $gnuplot2 "set label $counter '$lab1 $redshi' noenhanced at graph 0.01, graph 0.1 front tc rgb \"black\""
+          }
+          set plotspline ""
+          if {$spline} {
+              global orderspline
+              set plotspline "smooth cspline"
+              puts $gnuplot2 "set samples $orderspline"
+          }
+          puts $gnuplot2 [.variabili.estrai.text.gpcommand get 1.0 end]
+          if {$evidenzia == ""} {set firststyle 1} else {set firststyle 2}
+          regsub {\$1(?![0-9])} [set using$which] {v($1)} usingtmp
+          set plotline "plot \"$filetoplot\" using $usingtmp notitle with line $plotspline ls $firststyle"
+          foreach {rangeevi} "$evidenzia" {
+            if {[scan $rangeevi "%f:%f" xminloc xmaxloc] == 2 } {
+              regsub {\$1(?![0-9])} [set using$which] "evi(v(\$1),$xminloc,$xmaxloc)" usingtmp
+              set plotline "$plotline, \"\" using (evi(v(\$1),$xminloc,$xmaxloc)):2 notitle with line $plotspline ls 1"
+              puts $plotline
+            }
+          }
+          puts $gnuplot2 "$plotline"
+          puts $gnuplot2 "unset label $counter"
+      }
+  }
+  puts $gnuplot2 {unset multiplot}
+  switch -- "$how" {
+    2 {puts $gnuplot2 "set out" }
+    3 {puts $gnuplot2 "set out" }
+    4 {puts $gnuplot2 "# END    HERE#"
+           close $gnuplot2
+       set gnuplot2 $gnuplot2old
+      }
+  }
+  flush $gnuplot2
+}
+
+proc makegrid {} {
+  global deltax vred vsys listaplot relativistic
+
+  set w .makegrid
+  catch {destroy $w}
+  toplevel $w
+  wm title $w "IdentificaPostProcessor Grid"
+  wm iconname $w "IPP Grid"
+  frame $w.frame
+  frame $w.frame.delta -padx 5
+    label $w.frame.delta.lab -text "Xrange"
+    entry $w.frame.delta.ent -textvariable deltax -width 5
+    pack $w.frame.delta.lab  -side left
+    pack $w.frame.delta.ent -side left -fill x -expand y
+
+
+  set c $w.frame.c
+
+  frame $w.frame.buttons
+    button $w.frame.buttons.drawme -text "Draw" -command "drawme 1"
+  pack $w.frame.buttons.drawme -side left -fill x -expand y
+  canvas $c -xscrollcommand "$w.frame.hscroll set"  -yscrollcommand "$w.frame.vscroll set"
+
+  set incx 150
+  set incy 32
+  set lab1 "sys"
+  set val1 "red"
+
+  set ch $w.frame.ch
+  canvas $ch -height $incy -xscrollcommand "$w.frame.hscroll set"
+  set cv $w.frame.cv
+  canvas $cv -width [expr 50+$incx] -yscrollcommand "$w.frame.vscroll set"
+
+  scrollbar $w.frame.vscroll -orient vert -command "scrollAll {$c $cv} yview"
+  scrollbar $w.frame.hscroll -orient horiz -command "scrollAll {$c $ch} xview"
+
+  set count1 3
+  foreach "lab1 val1" "$vsys" {
+    set count2 5
+    button $cv.a$count1 -text "$lab1 [format %.2f $val1]" -relief groove -width 20
+    $cv create window [expr $count2] [expr $count1] -window $cv.a$count1 -anchor nw -tags item
+    set countlinecolor 0
+    foreach "redshi" "$vred" {
+      incr countlinecolor
+      if {$count1 == 3} {
+        button $ch.a$count1$count2 -text "$redshi" -width 14 -relief groove
+        $ch create window $count2 [expr $count1] -window $ch.a$count1$count2 -anchor nw -tags item
+      }
+      global plot1$count1$count2
+      global plot2$count1$count2
+      global plot3$count1$count2
+      frame  $c.b$count1$count2
+        label $c.b$count1$count2.l -text "[format %.2f [expr (1+$redshi)*$val1]]"        
+        foreach n {1 2 3} {
+          checkbutton $c.b$count1$count2.c$n -text "" -width 0 -bd 1 -variable plot$n$count1$count2 -command "updatelistaplot $n [expr (1+$redshi)*$val1] $lab1 $val1 $redshi $countlinecolor"
+          pack $c.b$count1$count2.c$n -side left -anchor w
+        }
+        bind $c.b$count1$count2.l <Double-Button-1> "zoomaround [expr (1+$redshi)*$val1] $lab1 $val1 $redshi $countlinecolor"
+        pack $c.b$count1$count2.l -side left -anchor w
+        foreach n {1 2 3} {
+          if {[lsearch -exact $listaplot "$n $lab1 $val1 $redshi $countlinecolor"] != -1 } then {
+            set plot$n$count1$count2 1
+          } else {
+            set plot$n$count1$count2 0
+          }
+        }
+      $c create window $count2 $count1 -window $c.b$count1$count2 -anchor nw -tags item
+      incr count2 $incx
+    }
+    incr count1 $incy
+  }
+
+  set width [expr $count2>640?640:$count2]
+  set height [expr $count1>480?480:$count1]
+  $c configure -scrollregion "0 0 $count2 $count1" -width $width -height $height
+  $ch configure -scrollregion "0 0 $count2 $incy" -width $width
+  $cv configure -scrollregion "0 0 $incx $count1" -height $height
+  grid $c -in $w.frame -row 1 -column 1 -sticky news
+  grid $ch -in $w.frame -row 0 -column 1 -sticky news
+  grid $cv -in $w.frame -row 1 -column 0 -sticky news
+  grid $w.frame.delta -in $w.frame -row 0 -column 0 -sticky news
+  grid $w.frame.buttons -in $w.frame -row 2 -column 0 -sticky news
+
+  grid $w.frame.vscroll -row 1 -column 2 -sticky news
+  grid $w.frame.hscroll -row 2 -column 1 -sticky news
+
+  grid rowconfig    $w.frame 1 -weight 1 -minsize 0
+  grid columnconfig $w.frame 1 -weight 1 -minsize 0
+
+  pack $w.frame -expand y -fill both
+
+  global evidenzia
+  frame $w.evidenzia
+  label $w.evidenzia.l -text "Highlight"
+  entry $w.evidenzia.e -textvariable evidenzia
+  checkbutton $w.evidenzia.relativistic -text "Relativistic" -variable relativistic
+  pack $w.evidenzia.l -side left -expand n
+  pack $w.evidenzia.e -side left -expand y -fill x
+  pack $w.evidenzia.relativistic -side left
+  pack $w.evidenzia -side left -expand y -fill x
+
+  menu $w.menu -relief raised
+  $w.menu add cascade -label "File" -underline 0 -menu $w.menu.file
+  menu $w.menu.file -tearoff 0
+  $w.menu.file add command -label "Plot it" -underline 0 -command { drawme 1 }
+  $w.menu.file add command -label "Export PDF" -underline 0 -command { drawme 2 }
+  $w.menu.file add command -label "Export PNG" -underline 0 -command { drawme 3 }
+  $w.menu.file add command -label "Save Gnuplot" -underline 0 -command { drawme 4 }
+  $w.menu.file add command -label "Plot in AquaTerm" -underline 0 -command { drawme 5 }
+  $w.menu.file add separator
+  $w.menu.file add command -label "Remove all" -underline 0 -command {cleangrid}
+  $w configure -menu $w.menu
+
+}
+
+proc cleangrid {} {
+  global deltax vred vsys listaplot relativistic
+
+  set listaplot ""
+
+  set incx 150
+  set incy 32
+  set lab1 "sys"
+  set val1 "red"
+
+  set count1 3
+  foreach "lab1 val1" "$vsys" {
+    set count2 5
+    set countlinecolor 0
+    foreach "redshi" "$vred" {
+      incr countlinecolor
+      global plot1$count1$count2
+      global plot2$count1$count2
+      global plot3$count1$count2
+      foreach n {1 2 3} {
+        if {[lsearch -exact $listaplot "$n $lab1 $val1 $redshi $countlinecolor"] != -1 } then {
+          set plot$n$count1$count2 1
+        } else {
+          set plot$n$count1$count2 0
+        }
+      }
+      incr count2 $incx
+    }
+    incr count1 $incy
+  }
+}
+
+proc about {} {
+  set w .about
+  set c $w.c
+  catch {destroy $w}
+  toplevel $w
+  wm title $w "IdentificaPostProcessor About"
+  wm iconname $w "IPP About"
+  frame $w.buttons
+  pack $w.buttons -side bottom -fill x -pady 2m
+  button $w.buttons.dismiss -text "Close this VERY useful window" -command "destroy $w"
+  pack $w.buttons.dismiss -side left -expand yes -fill both
+  label $w.header -text "For any information ask to"
+  pack $w.header
+  label $w.label -text "tommaso.vinci@polytechnique.edu" -font {Courier}
+  pack $w.label
+}
+
+proc sendcommand {stringa} {
+  global gnuplot
+  puts $gnuplot "$stringa"
+#  puts $stringa
+  flush $gnuplot
+}
+
+proc integrale {} {
+  global gnuplot mean
+  foreach i {1 2 3} {
+    global drawfiledat$i
+    if {[set drawfiledat$i]} {
+      global realfiledat$i using$i
+      if {$mean} {
+    set filetointegrate ${realfiledat1}_mean
+      } else {
+    set filetointegrate ${realfiledat1}
+      }
+      set gnuplot3 [ open "| tee debug | gnuplot -ctrlq 2>@stdout" w+ ]
+      puts $gnuplot3 "set table '/tmp/identifica${i}.txt'; plot '$filetointegrate' using [set using$i]; unset table"
+      close $gnuplot3
+    }
+  }
+  catch {destroy .integr}
+  toplevel .integr
+  wm protocol .integr WM_DELETE_WINDOW { sendcommand "unset arrow 50"; destroy .integr}
+
+  set integra "1"
+  frame .integr.filedat
+  foreach i {1 2 3} {
+    radiobutton .integr.filedat.r$i -text "$i" -variable integra -value "$i"
+    pack .integr.filedat.r$i -side left -expand y
+  }
+  .integr.filedat.r1 select
+  
+  pack .integr.filedat -fill x 
+  
+  foreach i {1 2} {
+    frame .integr.$i
+    frame .integr.$i.$i
+    foreach j {x y} {
+      global ${j}${i}int
+      frame .integr.$i.$i.$j
+      label .integr.$i.$i.$j.l -text $j$i -width 8
+      entry .integr.$i.$i.$j.e -textvariable ${j}${i}int
+      pack .integr.$i.$i.$j.l .integr.$i.$i.$j.e -side left
+      pack .integr.$i.$i.$j
+    }
+    button .integr.$i.b -text "click" -command "sendcommand {print \"integrale ${i}\"}"
+    pack .integr.$i.$i .integr.$i.b -fill both -side left
+    pack .integr.$i
+  }
+  foreach {l v} {"Sigma int" sigmaint} {
+    global $v
+    set $v 0.0
+    frame .integr.$v
+    label .integr.$v.l -text $l -width 10
+    entry .integr.$v.e -textvariable $v
+    pack .integr.$v.l .integr.$v.e -fill both -side left
+    pack .integr.$v
+  }
+
+  button .integr.stop -text "Stop" -command  "exec kill -POLL [pid $gnuplot]"
+  button .integr.b -text "Calculate" -command {
+    set xold -1
+    set yold -1
+    set fin [open "/tmp/identifica${integra}.txt" r]
+    set inte [expr -0.5*($y2int+$y1int)*($x2int-$x1int)]
+    set idx 0.0
+    while {! [eof $fin]} {
+      set linea [gets $fin]
+      set num [scan $linea "%f %f" x y]
+      if {$num > 1 } {
+        if {$xold < $x1int && $x >= $x1int} {
+          set idx [expr $idx + ($x-$x1int)/($x-$xold)-1.0]
+          set yold $y1int
+          set xold $x1int
+        }
+        if {$xold < $x2int && $x > $x2int} {
+          set idx [expr $idx + ($x2int-$xold)/($x-$xold)-1.0]
+          set y $y2int
+          set x $x2int
+        }
+        if {$x >= $x1int && $x <= $x2int} {
+          set idx [expr $idx +1.0]
+          set inte [expr $inte + 0.5*($y+$yold)*($x-$xold)]
+        }
+        set xold $x
+        set yold $y
+      }
+    }
+    close $fin
+    global barradistato
+    set barradistato "Integral $integra $inte"
+    set error [expr $sigmaint*($x2int-$x1int)/sqrt($idx)]
+    .integr.t insert 0.0 "dx = [expr $x2int-$x1int]\nnum points = $idx\nintegral = $inte\nerror = $error\n---------------------\n"
+    sendcommand "set arrow 50 from first $x1int,$y1int to first $x2int,$y2int nohead"
+    update
+    disegna
+  }
+  text .integr.t -height 3 -width 30 -setgrid 1 -height 10 -undo 1 -autosep 1
+  pack .integr.stop .integr.b .integr.t -fill x
+}
+
+
+proc addfunction {kind} {
+  global listafunc
+  set index 0
+#  puts "cippa %%%%%%%%%%%%%%%%%%%%%%%%%%%% [lsearch -exact $listafunc $index]"
+  while {[lsearch -exact $listafunc $index]!=-1} {incr index}
+  
+  set w .voigt
+  set pos 0
+  global fitfunc$index fituse$index
+  switch -exact -- "$kind" {
+      "voigt" {set fitfunc$index "c0f$index+c2f$index*voigt(x-c1f$index,c3f$index)"}
+      "gauss" {set fitfunc$index "c0f$index+c2f$index*exp(-2.773*((x-c1f$index)/c3f$index)**2)"}
+      "loren" {set fitfunc$index "c0f$index+c2f$index*(c3f$index)/((x-c1f$index)**2+c3f$index**2)"}
+  }
+  lappend listafunc $index
+  frame $w.frame.func$index -bd 2 -relief groove
+    button $w.frame.func$index.b -text "X" -command "remfunction $index"
+    pack $w.frame.func$index.b -side left
+    entry $w.frame.func$index.e -textvariable fitfunc$index -width 30
+    pack $w.frame.func$index.e -side left -expand y -fill x
+    checkbutton $w.frame.func$index.use -variable fituse$index
+    set fituse$index 1
+    pack $w.frame.func$index.use -side left
+  grid $w.frame.func$index -in $w.frame -row [expr $index+1] -column $pos -sticky news
+  
+  foreach i {c0f c1f c2f c3f} {
+    incr pos
+    global fit${i}${index} fit${i}${index}err fitlock${i}${index}
+    frame $w.frame.$i$index -bd 2 -relief groove
+      entry $w.frame.$i$index.val -textvariable fit${i}${index} -width 8
+      entry $w.frame.$i$index.err -textvariable fit${i}${index}err -width 5
+      set fitlock${i}${index} 0
+      checkbutton $w.frame.$i$index.lock -variable fitlock${i}${index}
+      pack $w.frame.$i$index.val $w.frame.$i$index.err -side left -expand y -fill both
+      pack $w.frame.$i$index.lock -side left
+    grid $w.frame.$i$index -in $w.frame -row [expr $index+1] -column $pos -sticky news
+  }
+  incr pos
+
+  set fitgammal$index 1
+  set fitgammad$index 1
+  sendcommand "print 'fitpoint $kind $index'"
+  update
+}
+
+proc remfunction {index} {
+  global listafunc
+  set idx [lsearch -exact $listafunc $index]
+  set listafunc [lsort [lreplace $listafunc $idx $idx]]
+  voigt
+}
+
+proc startfit {} {
+  global mean realfiledat1 listafunc
+  
+  if {$mean} {
+    set filetofit ${realfiledat1}_mean
+  } else {
+    set filetofit ${realfiledat1}
+  }
+
+  foreach index "$listafunc" {
+    global fitfunc${index}
+    sendcommand "f${index}(x)=[set fitfunc$index]"
+    
+    foreach i {c0f c1f c2f c3f} {
+      global fit${i}${index} fit${i}${index}err
+      sendcommand "${i}${index}=[set fit${i}${index}]"
+      sendcommand "${i}${index}_err=-1"
+    }
+     
+    set viavar ""
+    foreach i {c0f c1f c2f c3f} {
+      global fitlock${i}${index}
+      if {![set fitlock${i}${index}]} {lappend viavar $i$index}
+    }
+    global using1 xmin xmax
+    global fituse$index
+    if {[set fituse$index] && [llength $viavar] > 0} {
+      set viavar [join $viavar ","]
+      sendcommand "fit \[$xmin:$xmax\] f${index}(x) '$filetofit' u $using1 via $viavar"
+      sendcommand "print \"varfitvoigt $index \",c0f${index},c0f${index}_err,c1f${index},c1f${index}_err,c2f${index},c2f${index}_err,c3f${index},c3f${index}_err"
+      .voigt.text.t insert end "f${index}(x)=[set fitfunc$index]\n"
+      .voigt.text.t insert end "fit \[$xmin:$xmax\] f${index}(x) '$filetofit' u $using1 via $viavar\n"
+      sendcommand {print "redraw"}
+    }
+  }
+  
+}
+
+proc voigt {} {
+  set w .voigt
+  catch {destroy $w}
+  toplevel $w
+  wm title $w "IdentificaPostProcessor Line interpolation"
+  wm iconname $w "IPP Fit"
+  frame $w.frame -bd 2 -relief groove
+    frame $w.frame.add
+    set ind2 -1
+    foreach i {voigt gauss loren} {
+      button $w.frame.add.$i -text "$i" -command "addfunction $i" -width 7
+      incr ind2
+      grid $w.frame.add.$i -in $w.frame.add -column $ind2 -row 0 -sticky news
+      grid columnconfigure $w.frame.add $ind2 -weight 1
+#      pack $w.frame.add.$i -side left -expand y -fill x
+    }
+    grid $w.frame.add -in $w.frame -row 0 -column 0 -sticky news
+  set ind 0
+  foreach i {c0f c1f c2f c3f} {
+     frame $w.frame.$i -bd 2 -relief groove
+     label $w.frame.$i.l -text "$i" -width 10
+     pack $w.frame.$i.l -expand y -fill x
+     incr ind
+     grid $w.frame.$i -in $w.frame -row 0 -column $ind -sticky news
+  }
+  incr ind
+  global listafunc
+  foreach index "$listafunc" {
+    set pos 0
+    global fitfunc$index fituse$index
+    frame $w.frame.func$index -bd 2 -relief groove
+      button $w.frame.func$index.b -text "X" -command "remfunction $index"
+      pack $w.frame.func$index.b -side left
+      entry $w.frame.func$index.e -textvariable fitfunc$index -width 30
+      pack $w.frame.func$index.e -side left -expand y -fill x
+      checkbutton $w.frame.func$index.use -variable fituse$index
+      pack $w.frame.func$index.use -side left
+    grid $w.frame.func$index -in $w.frame -row [expr $index+1] -column $pos -sticky news
+    grid columnconfigure $w.frame $pos -weight 1
+    
+    foreach i {c0f c1f c2f c3f} {
+      incr pos
+      global fit${i}${index}
+      frame $w.frame.$i$index -bd 2 -relief groove
+        entry $w.frame.$i$index.val -textvariable fit$i$index -width 8
+        entry $w.frame.$i$index.err -textvariable fit$i$index -width 5
+        global fitlock${i}${index}
+        set fitlock${i}${index} 0
+        checkbutton $w.frame.$i$index.lock -variable fitlock${i}${index}
+        pack $w.frame.$i$index.val $w.frame.$i$index.err -side left -expand y -fill both
+        pack $w.frame.$i$index.lock -side left
+      grid $w.frame.$i$index -in $w.frame -row [expr $index+1] -column $pos -sticky news
+        grid columnconfigure $w.frame $pos -weight 1
+    }
+  }
+  
+  pack $w.frame -fill x
+
+  frame $w.text
+  text $w.text.t -height 5
+  pack $w.text.t -fill both -expand y
+  pack $w.text -side left -expand y -fill both
+
+
+  menu $w.menu -relief raised
+  $w.menu add cascade -label "File" -underline 0 -menu $w.menu.file
+  menu $w.menu.file -tearoff 0
+  $w.menu.file add command -label "Load"
+  $w.menu.file add command -label "Save"
+  $w.menu add command -label "Startfit" -command {startfit}
+  $w configure -menu $w.menu
+}
+
+proc controlla {fp} {
+  global gnuplot
+  set linea [gets $fp]
+  if {[eof $fp] || $linea == ""} {
+    fileevent $fp readable ""
+    after 100 [list fileevent $fp readable "controlla $fp"]
+  } else {
+    set value ""
+    scan $linea "%s" value
+    switch -exact -- "$value" {
+      "help" {about}
+      "mainwindow" { raise . }
+      "redraw" {schiaccia .disegna}
+      "grid" {
+        global grid
+        if {$grid == 1} {
+          set grid 0
+        } else {
+          set grid 1
+        }
+        schiaccia .disegna
+      }
+      "savecoord" {
+        global barradistato
+        foreach i {x y} {
+          foreach j {max min} {
+            global $i$j s$i$j
+            set s$i$j [set $i$j]
+          }
+        }
+        set barradistato "Coordinate salvate"
+      }
+      "restorecoord" {
+        global barradistato
+        foreach i {x y} {
+          foreach j {max min} {
+            global $i$j s$i$j
+            set $i$j [set s$i$j]
+          }
+        }
+        schiaccia .disegna
+        set barradistato "Coordinate ripristinate"
+      }
+      "mean" {
+        global mean
+        if {$mean == 1} {
+          set mean 0
+        } else {
+          set mean 1
+        }
+        schiaccia .disegna
+      }
+      "spline" {
+        global spline
+        if {$spline == 1} {
+          set spline 0
+        } else {
+          set spline 1
+        }
+        schiaccia .disegna
+      }
+      "ranges" {
+        global autoranges xmin xmax ymin ymax zoom
+        scan $linea "ranges %s %f %f %f %f" dir xmin xmax ymin ymax
+        global autoranges zoom
+        set autoranges 0
+        set dx [expr abs($xmax-$xmin)*$zoom]
+        set dy [expr abs($ymax-$ymin)*$zoom]
+        switch -exact -- $dir {
+          l { set xmin [expr $xmin-$dx]
+              set xmax [expr $xmax-$dx]
+            }
+          r { set xmin [expr $xmin+$dx]
+              set xmax [expr $xmax+$dx]
+            }
+          d { set ymin [expr $ymin-$dy]
+              set ymax [expr $ymax-$dy]
+            }
+          u { set ymin [expr $ymin+$dy]
+              set ymax [expr $ymax+$dy]
+            }
+          i { set xmin [expr $xmin+$dx/(1+2*$zoom)]
+              set xmax [expr $xmax-$dx/(1+2*$zoom)]
+              set ymin [expr $ymin+$dy/(1+2*$zoom)]
+              set ymax [expr $ymax-$dy/(1+2*$zoom)]
+            }
+          o { set xmin [expr $xmin-$dx]
+              set xmax [expr $xmax+$dx]
+              set ymin [expr $ymin-$dy]
+              set ymax [expr $ymax+$dy]
+            }
+          x { set xmin [expr $xmin-$dx]
+              set xmax [expr $xmax+$dx]
+            }
+          X { set xmin [expr $xmin+$dx/(1+2*$zoom)]
+              set xmax [expr $xmax-$dx/(1+2*$zoom)]
+            }
+          y { set ymin [expr $ymin-$dy]
+              set ymax [expr $ymax+$dy]
+            }
+          Y { set ymin [expr $ymin+$dy/(1+2*$zoom)]
+              set ymax [expr $ymax-$dy/(1+2*$zoom)]
+            }
+          s { set autoranges 1; return}
+        }
+        if {$autoranges != 1} {schiaccia .disegna}
+      }
+      "turning" {
+        global ruler
+        if { "$linea" == "turning ruler off."} then {
+          set ruler 0
+        } else {
+          if { "$linea" == "turning ruler on."} then {
+            set ruler 1
+            after 100 {
+              sendcommand {print "ruler ",MOUSE_RULER_X,MOUSE_RULER_Y}
+            }
+          }
+        }
+      }
+      "ruler" {
+        global rulerx rulery
+        scan $linea "ruler %f %f" rulerx rulery
+#         puts "cippa ruler $rulerx $rulery"
+      }
+      "Button1" {
+        global ruler rulerx rulery
+        set scanResults [scan $linea "Button1 %f %f %f %f" xmouse ymouse rulerx rulery]
+        if {$scanResults >= 2} {
+          set stringa "mouse: $xmouse $ymouse"
+          if {$scanResults == 4 } {
+            set rapp1 "NAN"
+            set rapp2 "NAN"
+            if {$xmouse != 0} { set rapp1 [expr $rulerx/$xmouse]}
+            if {$rulerx != 0} { set rapp2 [expr $xmouse/$rulerx]}
+            set stringa "ruler: $rulerx $rulery\n$stringa\nxRati: $rapp1 $rapp2"
+          }
+          .text.text insert end "$stringa\n"
+	      catch {.blocco.text.text insert end "$stringa\n"}
+        }
+      }
+      "set" {
+        global autoranges xmin xmax ymin ymax
+        scan $linea "set xr\[%f:%f\]; set yr\[%f:%f\]" xmin xmax ymin ymax
+        set autoranges 0
+        update
+        schiaccia .disegna
+      }
+      "fit" {
+        global autoranges xmin xmax ymin ymax realfiledat1 filedat1 rulerx rulery ruler mean
+        global autooffset autointensity autoposition autofwhm
+        global offset intensity position fwhm
+        global using1
+        if {$ruler} {
+          if {$mean} {
+            set filetofit ${realfiledat1}_mean
+          } else {
+            set filetofit ${realfiledat1}
+          }
+          set viavar ""
+          if {$autooffset} {
+            lappend viavar offset
+            sendcommand "offset=$rulery"
+          } else {
+            sendcommand "offset=$offset"
+          }
+          if {$autointensity} {
+            lappend viavar intensity
+            sendcommand "intensity=($ymin-$ymax)/2."
+          } else {
+            sendcommand "intensity=$intensity"
+          }
+          if {$autoposition} {
+            lappend viavar position
+            sendcommand "position=$rulerx"
+          } else {
+            sendcommand "position=$position"
+          }
+          if {$autofwhm} {
+            lappend viavar fwhm
+            sendcommand "fwhm=($xmax-$xmin)/4."
+          } else {
+            sendcommand "fwhm=$fwhm"
+          }
+          set viavar [join $viavar ","]
+          sendcommand "fit \[$xmin:$xmax\] f(x) '$filetofit' u $using1 via $viavar"
+#          puts "fit \[$xmin:$xmax\] f(x) '$filetofit' u $using1 via $viavar"
+    
+          sendcommand  {print "varfit ",offset,intensity,position,fwhm}
+        } else {
+          tk_messageBox -icon error -type ok -message "You have to set the ruler (Press r)" -title "Error"
+        }
+      }
+      "voigt" {
+        global offset intensity position fwhm
+        eval $linea
+      }
+      "varfit" {
+        global offset intensity position fwhm
+        scan $linea "varfit %f %f %f %f" offset intensity position fwhm
+        schiaccia .disegna
+      }
+      "varfitvoigt" {
+        scan $linea "varfitvoigt %d %f %f %f %f %f %f %f %f" index c0f c0ferr c1f c1ferr c2f c2ferr c3f c3ferr
+        foreach i {c0f c1f c2f c3f} {
+          global fit${i}${index} fit${i}${index}err
+          set fit${i}${index} [set $i]
+          set fit${i}${index}err [set ${i}err]
+        }
+      }
+      "fitpoint" {
+        scan $linea "fitpoint %s %d" kind index
+        global barradistato
+        set barradistato "Click the base of the line"
+        sendcommand "pause mouse; print \"fitpoint1 $kind $index \", MOUSE_X, MOUSE_Y"
+      }
+      "fitpoint1" {
+        scan $linea "fitpoint1 %s %d %f %f" kind index mousex mousey
+        global fitc0f$index fitc1f$index fitc2f$index fitc3f$index xmin xmax ymin ymax
+        set fitc0f$index $mousey 
+        set fitc1f$index $mousex 
+        switch -exact -- "$kind" {
+          "voigt" {
+             set fitc3f$index [expr 0.05*($xmax - $xmin)/($ymax-$ymin)]
+             if { $mousey > [expr 0.5*($ymax+$ymin)] } {
+               set fitc2f$index [expr 0.3*([set fitc3f$index])*($ymin - $ymax)]
+             } else {
+               set fitc2f$index [expr 0.3*([set fitc3f$index])*($ymax - $ymin)]
+             }
+          }
+          "gauss" {
+             if { $mousey > [expr 0.5*($ymax+$ymin)] } {
+               set fitc2f$index [expr 0.5*($ymin - $ymax)]
+             } else {
+               set fitc2f$index [expr 0.5*($ymax - $ymin)]
+             }
+             set fitc3f$index [expr 0.1*($xmax - $xmin)]
+          }
+          "loren" {
+             set fitc3f$index [expr 0.1*($xmax - $xmin)]
+             if { $mousey > [expr 0.5*($ymax+$ymin)] } {
+               set fitc2f$index [expr 0.5*([set fitc3f$index])*($ymin - $ymax)]
+             } else {
+               set fitc2f$index [expr 0.5*([set fitc3f$index])*($ymax - $ymin)]
+             }
+          }
+        }
+        global barradistato
+        set barradistato "Point at $mousex $mousey"
+        disegna
+        update
+      }
+      "integrale0" { integrale }
+      "integrale" {
+        global barradistato
+        scan $linea "integrale %d" num
+        set barradistato "Click to the point $num"
+        sendcommand "pause mouse; print \"punto $num \", MOUSE_X, MOUSE_Y"
+      }
+      "punto" {
+        global barradistato
+        scan $linea "punto %d %f %f" num x y
+        global x${num}int y${num}int
+        set x${num}int $x
+        set y${num}int $y
+        set barradistato "Point $num : [set x${num}int] [set y${num}int]"
+      }
+      "meanvaluesigma" {
+        global meanvalue meanweight meansigma meanerr xmin xmax using1 mean realfiledat1
+        if {$mean} {
+          set filetofit ${realfiledat1}_mean
+        } else {
+          set filetofit ${realfiledat1}
+        }
+        set meanvalue 0.0
+        set meanweight 0.0
+        set meanerr 0.0
+        set inde1 0
+        set fin [open "$filetofit" r]
+        while {! [eof $fin]} {
+          set linea [gets $fin]
+          set num [scan $linea "%f %f %f" x y err]
+          switch -- $num {
+            2 { if {$x>=$xmin && $x <= $xmax} {
+                  incr inde1
+                  set meanvalue [expr $meanvalue + $y]
+                }
+              }
+            3 { if {$x>=$xmin && $x <= $xmax} {
+                  incr inde1
+                  set meanvalue [expr $meanvalue + $y]
+                  set meanerr [expr $meanerr + $err]
+                  set meanweight [expr $meanweight + $y * $err]
+                }
+              }
+          }
+        }
+        close $fin
+
+        if {$inde1 > 0} {
+          if {$meanerr != 0 } {set meanweight [expr $meanweight / $meanerr]}
+          set meanvalue [expr $meanvalue / $inde1]
+          set meanerr [expr $meanerr / $inde1]
+
+          set inde2 0
+          set meansigma 0.0
+          set fin [open "$filetofit" r]
+          while {! [eof $fin]} {
+            set linea [gets $fin]
+            set num [scan $linea "%f %f %f" x y err]
+            switch -- $num {
+              2 { if {$x>=$xmin && $x <= $xmax} {
+                    incr inde2
+                    set meansigma [expr $meansigma + ($y-$meanvalue)*($y-$meanvalue)]
+                  }
+                }
+              3 { if {$x>=$xmin && $x <= $xmax} {
+                    incr inde2
+                    set meansigma [expr $meansigma + ($y-$meanvalue)*($y-$meanvalue)]
+                  }
+                }
+            }
+          }
+          
+          close $fin
+          if ($inde1==$inde2) {
+            set meansigma [expr sqrt($meansigma/($inde2-1.0))]
+            set meansigma "\[$inde2\] $meansigma"
+          } else {
+            puts "there were some big problem $inde1 $inde2"
+          }
+        }
+        update
+      }
+      
+      "simulariga" {
+        global autoranges xmin xmax ymin ymax realfiledat1 filedat1 rulerx rulery ruler mean
+        global autooffset autointensity autoposition autofwhm
+        global offset intensity position fwhm wr lrest
+        global using1
+        if {$ruler || (($offset != "") && ($position!=""))} {
+          if {$fwhm != "" && $wr != "" && $lrest != ""} {
+            if {$mean} {
+              set filetofit ${realfiledat1}_mean
+            } else {
+              set filetofit ${realfiledat1}
+            }
+            sendcommand  "set table '/tmp/identifica.txt'"
+            sendcommand  "plot '$filetofit' using $using1"
+            sendcommand  "unset table"
+            if {$ruler} {
+                set position $rulerx
+                set offset $rulery
+            } else {
+                set ruler 1
+                set rulerx $position
+                set rulery $offset
+                sendcommand  "set mouse ruler at $rulerx, $rulery"
+            }
+            sendcommand  "offset=$offset"
+            sendcommand  "position=$position"
+            sendcommand  "print \"simulariga2\""
+          } else {
+            tk_messageBox -icon error -type ok -message "You have to set the fwhm wr and \u03BBrest" -title "Error"
+          }
+        } else {
+          tk_messageBox -icon error -type ok -message "You have to set the ruler (Press r) or set the position and the offset" -title "Error"
+        }
+      }
+
+      "simulariga2" {
+        global offset position xmin xmax lrest fwhm intensity wr
+        global barradistato
+        set barradistato "Please wait: calculating the line"
+        update
+        set fin [open "/tmp/identifica.txt" r]
+        set int1 0.0e0
+        set int2 0.0e0
+        set xold 0.0e0
+        set yold 0.0e0
+        while {! [eof $fin]} {
+          set linea [gets $fin]
+          if {$linea != "" && [string index $linea 0] != "#"} {
+            scan $linea "%f %f" x y
+            if {$x>[expr $position-abs($fwhm)] && $x< [expr $position+abs($fwhm)]} {
+              set int1 [expr $int1 + (1-$offset)/1*($x-$xold)]
+              set int2 [expr $int2 + exp(-2.773*(($x-$position)/$fwhm)*(($x-$position)/$fwhm))/1*($x-$xold)]
+            }
+            set xold $x
+            set yold 1
+          }
+        }
+#        puts " cippa [format "%010.5f %010.5f %010.5f %010.5f"  $position $fwhm $int1 $int2]"
+        set intensity [expr ($int1 - $wr*$position/$lrest)/$int2]
+        close $fin
+        set barradistato "Line simulations finished $intensity"
+        .disegna configure -state normal
+        update
+        schiaccia .disegna
+      }
+
+      "autoranges" {
+        global autoranges xmin xmax ymin ymax
+        scan $linea "autoranges %f %f %f %f" xmin xmax ymin ymax
+        if {$autoranges == 0} {
+          set autoranges 1
+        } else {
+          set autoranges 0
+        }
+        schiaccia .disegna
+      }
+      "quit" {esci}
+      "save" {.menu.file invoke 1}
+      default  {
+        .text.text insert end "$linea\n"
+        .text.text see end
+      }
+    }
+  }
+}
+
+proc mean {filetmp order} {
+  global barradistato
+  .disegna configure -state disabled
+  set barradistato "Please wait: averaging file [file tail $filetmp]"
+  update
+  set fin [open "$filetmp" r]
+  set fou [open "${filetmp}_mean" w]
+  set maxcol 10
+  for { set j 0 } { $j < $maxcol } { incr j } {
+    set col$j 0.0
+  }
+  set maxcol 0
+  while {! [eof $fin]} {
+    set xa 0.
+    set ya 0.
+    set za 0.
+    for { set i 0 } { $i < $order } { incr i } {
+      set linea [gets $fin]
+      set numele  [llength $linea]
+      if {$numele > $maxcol} {set maxcol $numele}
+      for { set j 0 } { $j < $numele} { incr j } {
+        set col$j [expr [set col$j] + [lindex $linea $j]]
+      }
+    }
+    for { set j 0 } { $j < $maxcol } { incr j } {
+      puts -nonewline $fou "[expr [set col$j]/$order]\t"
+      set col$j 0
+    }
+    puts -nonewline $fou "\n"
+  }
+  close $fou
+  close $fin
+  set barradistato "Averaging finished: file [file tail $filetmp]"
+  .disegna configure -state normal
+  update
+}
+
+proc inizializza {} {
+  global gnuplot fonttype fontsize dimension_bitmap terminal
+
+  catch {close $gnuplot}
+
+  set gnuplot [ open "| tee debug | gnuplot -ctrlq 2>@stdout" w+ ]
+  sendcommand  "set mouse"
+  sendcommand  "set terminal $terminal enhanced font \'$fonttype\'"
+  sendcommand  "set mouse zoomjump"
+  sendcommand  "set mouse mouseformat \"%g %g\""
+  sendcommand  "set mouse clipboardformat \"%g %g\""
+  sendcommand  "set grid back"
+  sendcommand  "bind F1 replot"
+  sendcommand  "set colorbox horizontal user origin 0.1,0.95 size 0.8,0.015"
+  sendcommand  "set autoscale fix"
+  sendcommand  "set key outside samplen 1."
+  sendcommand  "set fit errorvariables"
+
+  sendcommand  {bind a 'print "autoranges ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'}
+  sendcommand  {bind s 'print "savecoord"'}
+  sendcommand  {bind b 'print "restorecoord"'}
+  sendcommand  {bind g 'print "grid"'}
+  sendcommand  {bind m 'print "mean"'}
+  sendcommand  {bind S 'print "spline"'}
+  sendcommand  {bind Left  'print "ranges l ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'}
+  sendcommand  {bind Right 'print "ranges r ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'}
+  sendcommand  {bind Up    'print "ranges u ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'}
+  sendcommand  {bind Down  'print "ranges d ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'}
+  sendcommand  {bind i     'print "ranges i ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'}
+  sendcommand  {bind o     'print "ranges o ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'}
+  sendcommand  {bind x     'print "ranges x ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'}
+  sendcommand  {bind y     'print "ranges y ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'}
+  sendcommand  {bind X     'print "ranges X ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'}
+  sendcommand  {bind Y     'print "ranges Y ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'}
+  sendcommand  {bind "ctrl-x" 'print "ranges cx ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'}
+  sendcommand  {bind "ctrl-y" 'print "ranges cy ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'}
+  sendcommand  {bind 7 ''}
+  sendcommand  {bind h 'print "help"'}
+  sendcommand  {bind d 'print "redraw"'}
+  sendcommand  {bind f 'print "fit"'}
+  sendcommand  {bind w 'print "simulariga"'}
+  sendcommand  {bind I 'print "integrale0"'}
+  sendcommand  {bind Return 'print "redraw"'}
+  sendcommand  {bind q 'print "quit"'}
+  sendcommand  {bind v 'print "mainwindow"'}
+  sendcommand  {bind l 'print "voigt"}
+  sendcommand  {bind "ctrl-s" 'print "save"'}
+  sendcommand  {bind t 'print "mouse ",MOUSE_X,MOUSE_Y,MOUSE_RULER_X,MOUSE_RULER_Y'}
+  sendcommand  {bind Button1 'print "Button1 ",MOUSE_X,MOUSE_Y,MOUSE_RULER_X,MOUSE_RULER_Y'}
+  sendcommand  "set mouse verbose"
+  sendcommand  {set style line 1  lt 1  lc rgb "red"   }
+  sendcommand  {set style line 2  lt 2  lc rgb "orange"}
+  sendcommand  {set style line 3  lt 3  lc rgb "dark-yellow"}
+  sendcommand  {set style line 4  lt 4  lc rgb "green" }
+  sendcommand  {set style line 5  lt 5  lc rgb "cyan"  }
+  sendcommand  {set style line 6  lt 6  lc rgb "blue"  }
+  sendcommand  {set style line 7  lt 7  lc rgb "violet"}
+  sendcommand  {set style line 8  lt 8  lc rgb "pink" }
+  sendcommand  {set style line 9  lt 9  lc rgb "gray"}
+  sendcommand  {set style line 10 lt 10 lc rgb "brown"}
+  sendcommand  {set style increment user}
+  sendcommand  "g(x)=meanvalue"
+  sendcommand  {bind c 'print "meanvaluesigma"'}
+  fileevent $gnuplot readable {controlla $gnuplot}
+
+}
+
+proc openspec {filein} {
+   global real$filein $filein ordermean gnuplot
+   set types {{"Data files" {.dat}} {"Data mean files" {.dat_mean}} {"All files" *}}
+   if {[set filetmp [tk_getOpenFile -filetypes $types -initialdir [file dirname [set $filein]] -initialfile [set $filein] -parent .]] != ""} {
+     set $filein [file tail $filetmp]
+     set real$filein "$filetmp"
+     mean $filetmp $ordermean
+   }
+}
+
+proc openothers {filein} {
+   global real$filein $filein
+   set types {{"Data files" {.txt}} {"All files" *}}
+   if {[set filetmp [tk_getOpenFile -filetypes $types -initialdir [file dirname [set real$filein]] -initialfile [set $filein] -parent .]] != ""} {
+     set $filein [file tail $filetmp]
+     set real$filein "$filetmp"
+     load$filein
+   }
+}
+
+proc loadredshift {} {
+  global vred realredshift
+  if {[file exists "$realredshift"]} {
+    set fin [open "$realredshift" r]
+    set vred ""
+    while {! [eof $fin]} {
+      if { [scan [gets $fin] "%f" val] == 1} {lappend vred $val}
+    }
+    close $fin
+  }
+}
+
+proc loadsystems {} {
+  global vsys drawsystems realsystems
+  set drawsystems 0
+  if {[file exists "$realsystems"]} {
+    set fin [open "$realsystems" r]
+    set vsys ""
+    while {! [eof $fin]} {
+      set linea [gets $fin]
+      if { [string index "$linea" 0] != "#" && [scan "$linea" "%s %f" lab val] == 2} {
+        lappend vsys $lab $val
+        set drawsystems 1
+      }
+    }
+    close $fin
+  } else {tk_messageBox -icon error -type ok -message "file $realsystems does not exists" -title "Error"}
+}
+
+proc cambiacolor {i} {
+  global color$i
+
+  if {[set colortemp [tk_chooseColor -initialcolor [set color$i]]] != ""} {
+    set color$i $colortemp
+  }
+}
+
+
+################################################################################
+
+set gnuplot2 [ open "| gnuplot -ctrlq 2>@stdout" w+ ]
+fileevent $gnuplot2 readable {controlla $gnuplot2}
+
+
+
+wm title . "IdentificaPostProcessor"
+wm iconname . "IPP Root"
+wm protocol . WM_DELETE_WINDOW { esci }
+
+set colorgui "#aed8fc"
+#06c3e6
+tk_setPalette "$colorgui"
+
+option add *Dialog.msg.font "Arial 16"
+
+foreach i {Text Spinbox} {
+    bind $i <Control-d>  {}
+}
+
+set terminal "x11 title \"Spectrum Post Processor\""
+
+foreach i {1 2 3} {
+  set filedat$i ""
+  set realfiledat$i ""
+  set colorfiledat$i "black"
+  set using$i "(\$1):(\$2)"
+}
+
+set fileipp "work.ipp"
+set realfileipp "work.ipp"
+set fileps "work.ps"
+set fileeps "work.eps"
+set filepdf "work.pdf"
+set filejpg "work.jpg"
+set filepng "work.png"
+set filefig "work.fig"
+set filesvg "work.svg"
+set fileobj "work.obj"
+set filetxt "work.txt"
+set filegnu "work.gnu"
+set filecsv "work.csv"
+set filerun "work.run"
+set filenote "work.note.txt"
+
+set listafunc ""
+
+set evidenzia ""
+set deltax 100
+set relativistic 0
+
+set listaplot ""
+set integrale 0
+foreach i {1 2} {
+  foreach j {x y} {
+    set ${j}${i}int 0
+  }
+}
+
+foreach i {xmin xmax ymin ymax sxmin sxmax symin symax} {
+  set $i "*"
+}
+
+
+foreach i {offset intensity position fwhm} {
+  set $i ""
+  set auto$i 1
+}
+
+foreach i {wr lrest vred vsys xlabel ylabel title} {
+  set $i ""
+}
+
+
+set dimension_bitmap "800,600"
+set fonttype "luxisr"
+set fontsize "20"
+
+set zoom 0.25
+
+set ruler 0
+set rulerx 0
+set rulery 0
+set ordermean 3
+
+set linewidth 1
+
+set with "lines"
+
+set spline 0
+set orderspline 2000
+
+foreach i {x y z mouse} {
+  set format$i "% g"
+}
+
+set var_postproc ""
+lappend var_postproc xmin xmax ymin ymax
+lappend var_postproc sxmin sxmax symin symax
+lappend var_postproc grid dimension_bitmap fonttype fontsize
+lappend var_postproc filerun skyline systems redshift
+foreach i {1 2 3} {
+  lappend var_postproc filedat$i realfiledat$i colorfiledat$i using$i
+}
+
+lappend var_postproc realsystems realredshift realskyline
+lappend var_postproc xlabel ylabel
+lappend var_postproc title formatx formaty formatmouse linewidth
+lappend var_postproc colorgui deltax
+lappend var_postproc zoom mean ordermean spline orderspline
+lappend var_postproc offset intensity position fwhm wr lrest
+lappend var_postproc autooffset autointensity autoposition autofwhm
+lappend var_postproc listaplot evidenzia relativistic
+lappend var_postproc ruler rulerx rulery
+lappend var_postproc meanvalue meansigma meanerr meanweight
+lappend var_postproc listafunc with
+
+panedwindow .variabili -showhandle 0
+
+  frame .variabili.estrai
+
+    foreach i {filedat1 filedat2 filedat3} {
+      set $i ""
+      set draw$i 0
+      frame .variabili.estrai.$i
+        checkbutton .variabili.estrai.$i.lab -text "$i" -width 9 -anchor w -variable draw$i
+        button .variabili.estrai.$i.val -textvariable $i -command "openspec $i; set draw$i 1"
+        pack .variabili.estrai.$i.lab -side left -anchor e
+        pack .variabili.estrai.$i.val -side right -expand yes -fill x
+      pack .variabili.estrai.$i -expand yes -fill both
+    }
+
+    foreach i {skyline systems} {
+      set $i ""
+      set real$i ""
+      set draw$i 0
+      frame .variabili.estrai.$i
+        checkbutton .variabili.estrai.$i.lab -text "$i" -width 9 -anchor w -variable draw$i
+        button .variabili.estrai.$i.val -textvariable $i -command "openothers $i; set draw$i 1"
+        pack .variabili.estrai.$i.lab -side left -anchor e
+        pack .variabili.estrai.$i.val -side right -expand yes -fill x
+      pack .variabili.estrai.$i -expand yes -fill both
+    }
+
+    foreach i {redshift} {
+      set $i ""
+      set real$i ""
+      set draw$i 0
+      frame .variabili.estrai.$i
+        label .variabili.estrai.$i.lab -text "$i" -width 12 -anchor w
+        button .variabili.estrai.$i.val -textvariable $i -command "openothers $i; set draw$i 1"
+        pack .variabili.estrai.$i.lab -side left -anchor e
+        pack .variabili.estrai.$i.val -side right -expand yes -fill x
+      pack .variabili.estrai.$i -expand yes -fill both
+    }
+
+
+    frame .variabili.estrai.text -relief groove -bd 2
+      label .variabili.estrai.text.lab -text "Gnuplot commands"
+      text .variabili.estrai.text.gpcommand -width 40 -setgrid 1 -height 10 -undo 1 -maxundo 0 -autosep 1 -yscrollcommand ".variabili.estrai.text.scroll set" -setgrid true -bd 1 -font {courier 12}
+      scrollbar .variabili.estrai.text.scroll -command ".variabili.estrai.text.gpcommand yview" -width 10 -bd 1
+      pack .variabili.estrai.text.lab
+      pack .variabili.estrai.text.scroll -side right -fill y
+      pack .variabili.estrai.text.gpcommand -expand yes -fill both
+    pack .variabili.estrai.text -fill x
+
+  frame .variabili.disegna
+
+    set autoranges 0
+    set grid 1
+    frame .variabili.estrai.check -relief groove
+    frame .variabili.estrai.check.c1 -relief groove
+    foreach i {grid autoranges} {
+      checkbutton .variabili.estrai.check.c1.$i -text "$i" -variable $i -width 10 -anchor w
+      pack .variabili.estrai.check.c1.$i -side left -expand yes -fill both
+    }
+    pack .variabili.estrai.check.c1 -expand yes -fill both
+    frame .variabili.estrai.check.c2 -relief groove
+    foreach i {mean spline} {
+      checkbutton .variabili.estrai.check.c2.$i -text "$i [set order$i]" -variable $i -width 10 -anchor w
+      pack .variabili.estrai.check.c2.$i -side left -expand yes -fill both
+      bind .variabili.estrai.check.c2.$i <Double-Button-1> {.menu.settings invoke 3}
+      bind .variabili.estrai.check.c2.$i <Button-3> {.menu.settings invoke 3}
+    }
+    pack .variabili.estrai.check.c2 -expand yes -fill both
+    pack .variabili.estrai.check -expand yes -fill both
+
+    frame .variabili.disegna.range -bd 2 -relief groove
+
+    foreach j {x y} {
+      frame .variabili.disegna.range.$j
+      label .variabili.disegna.range.$j.lab -text "$j range" -width 9 -anchor e
+      pack .variabili.disegna.range.$j.lab -side left -anchor e
+      foreach i {min max} {
+          entry .variabili.disegna.range.$j.$i -textvariable $j$i -width 10
+          pack .variabili.disegna.range.$j.$i -side left -expand yes -fill x
+      }
+      pack .variabili.disegna.range.$j -expand y -fill x
+    }
+
+    pack .variabili.disegna.range -expand y -fill both
+    frame .variabili.disegna.u -bd 2 -relief groove
+    foreach i {using1 using2 using3} {
+      frame .variabili.disegna.u.$i
+        label .variabili.disegna.u.$i.lab -text "$i" -width 9 -anchor e
+        entry .variabili.disegna.u.$i.val -textvariable $i
+        pack .variabili.disegna.u.$i.lab -side left -anchor e
+        pack .variabili.disegna.u.$i.val -side right -expand yes -fill x
+      pack .variabili.disegna.u.$i -expand yes -fill both
+    }
+    pack .variabili.disegna.u -expand y -fill both
+    frame .variabili.disegna.lab -bd 2 -relief groove
+    foreach i {title xlabel ylabel} {
+      frame .variabili.disegna.lab.$i
+        label .variabili.disegna.lab.$i.lab -text "$i" -width 9 -anchor e
+        entry .variabili.disegna.lab.$i.val -textvariable $i
+        pack .variabili.disegna.lab.$i.lab -side left -anchor e
+        pack .variabili.disegna.lab.$i.val -side right -expand yes -fill x
+      pack .variabili.disegna.lab.$i -expand yes -fill both
+    }
+    pack .variabili.disegna.lab -expand y -fill both
+    frame .variabili.disegna.fit -bd 2 -relief groove
+    foreach i {offset position fwhm intensity} {
+      frame .variabili.disegna.fit.$i
+        label .variabili.disegna.fit.$i.lab -text "$i" -width 9 -anchor e
+        entry .variabili.disegna.fit.$i.val -textvariable $i
+        checkbutton .variabili.disegna.fit.$i.auto -variable auto$i -text "auto"
+        pack .variabili.disegna.fit.$i.lab -side left -anchor e
+        pack .variabili.disegna.fit.$i.auto -side right -expand yes -fill x
+        pack .variabili.disegna.fit.$i.val -side right -expand yes -fill x
+      pack .variabili.disegna.fit.$i -expand yes -fill both
+    }
+    pack .variabili.disegna.fit -expand y -fill both
+    frame .variabili.disegna.linea -bd 2 -relief groove
+    foreach {i j} {wr "wr"  lrest "\u03BB  rest"} {
+      frame .variabili.disegna.linea.$i
+        label .variabili.disegna.linea.$i.lab -text "$j" -width 9 -anchor e
+        entry .variabili.disegna.linea.$i.val -textvariable $i
+        pack .variabili.disegna.linea.$i.lab -side left -anchor e
+        pack .variabili.disegna.linea.$i.val -side right -expand yes -fill x
+      pack .variabili.disegna.linea.$i -expand yes -fill both
+    }
+    pack .variabili.disegna.linea -expand y -fill both
+
+    frame .variabili.disegna.mean -bd 2 -relief groove
+    foreach {i j} {meanvalue "Mean"  meanweight "Weighted" meansigma "Sigma" meanerr "Err"} {
+      frame .variabili.disegna.mean.$i
+        label .variabili.disegna.mean.$i.lab -text "$j" -width 9 -anchor e
+        entry .variabili.disegna.mean.$i.val -textvariable $i
+        pack .variabili.disegna.mean.$i.lab -side left -anchor e
+        pack .variabili.disegna.mean.$i.val -side right -expand yes -fill x
+      pack .variabili.disegna.mean.$i -expand yes -fill both
+    }
+    pack .variabili.disegna.mean -expand y -fill both
+
+  .variabili add .variabili.estrai -width 250
+  .variabili add .variabili.disegna -width 250
+  pack .variabili -side top -expand n -fill x -pady 2 -padx 2m -anchor n
+
+button .disegna -text "Draw \[Ctrl-d\]" -command {
+  disegna
+  set barradistato "Draw"
+}
+#pack .disegna -expand yes -fill x -anchor n
+
+frame .text -relief groove -bd 0
+  text .text.text -height 3 -width 10 -setgrid 1 -height 30 -undo 1 -autosep 1 -yscrollcommand ".text.scroll set" -setgrid true -bd 0 -font {courier 9}
+  scrollbar .text.scroll -command ".text.text yview" -width 10 -bd 1
+  pack .text.scroll -side left -fill y
+  pack .text.text -expand yes -fill both
+  .text.text configure -height 10
+
+label .statusbar -textvariable barradistato -font {Helvetica 12} -bd 2 -relief groove -anchor w
+
+pack .disegna -expand n -fill x -side top -anchor n
+pack .text -fill both -side top -expand yes
+pack .statusbar -fill x -side bottom -expand n -anchor s
+
+#pack .text -expand yes -fill both -anchor n
+
+menu .menu -relief raised
+.menu add cascade -label "File" -underline 0 -menu .menu.file
+  menu .menu.file -tearoff 0
+    .menu.file add command -label "Open session \[Ctrl-o\]" -underline 0 -command {
+      set types {{"IPP files" {.ipp}} {"All files" *}}
+      if {[set filetmp [tk_getOpenFile -filetypes $types -initialdir [file dirname $realfileipp] -initialfile "$realfileipp"]] != ""} {
+        set realfileipp "$filetmp"
+        set fileipp [file tail $filetmp]
+        .menu.file invoke 4
+      }
+    }
+    .menu.file add command -label "Save session \[Ctrl-s\]" -underline 0 -command {
+        set fp [open "$realfileipp" w]
+        puts $fp "IDENTIFICA POST PROCESSOR"
+        set vartosave $var_postproc
+        foreach index "$listafunc" {
+          lappend vartosave fitfunc$index fituse$index
+          foreach i {c0f c1f c2f c3f} {
+            lappend vartosave fit${i}${index} fit${i}${index}err fitlock${i}${index}
+          }
+        }
+        foreach i $vartosave {
+            global $i
+            puts $fp "\{$i\} \{[set $i]\}"
+        }
+        puts $fp "COMMANDS FOR GNUPLOT"
+        puts -nonewline $fp [.variabili.estrai.text.gpcommand get 1.0 end-1c]
+        close $fp
+        set barradistato "Saved: $fileipp"
+    }
+    .menu.file add command -label "Save session As" -underline 13 -command {
+      set types {{"work files" {.ipp}} {"All files" *}}
+      if {[set filetmp [tk_getSaveFile -filetypes $types -initialdir [file dirname $realfileipp] -initialfile "$realfileipp"]] != ""} {
+        set realfileipp "$filetmp"
+        set fileipp [file tail $filetmp]
+        wm title . "IdentificaPostProcessor - $fileipp"
+        .menu.file invoke 1
+      }
+    }
+    .menu.file add command -label "Revert session \[Ctrl-r\]" -underline 0 -command {
+      wm title . "IdentificaPostProcessor - $fileipp"
+      if {![file exists "$realfileipp"]} {
+        tk_messageBox -icon error -type ok -message "File $fileipp does not exists\n" -title "Alert"
+        return
+      }
+      set fp [open "$realfileipp" r]
+      set livello 0
+      .variabili.estrai.text.gpcommand delete 1.0 end
+      while {! [eof $fp]} {
+        set linea [gets $fp]
+        switch -- $linea {
+          "IDENTIFICA POST PROCESSOR" { set livello 1 }
+          "COMMANDS FOR GNUPLOT" { set livello 2 }
+          "" {}
+          default {
+            if {$livello == 1} {
+              global [lindex $linea 0]
+              set [lindex $linea 0] [lindex $linea 1]
+            }
+            if {$livello == 2} {.variabili.estrai.text.gpcommand insert end "$linea\n"}
+          }
+        }
+      }
+      close $fp
+      tk_setPalette "$colorgui"
+      foreach i {skyline systems} {
+        if {[set $i] != ""} {set draw$i 1}
+      }
+      if {$redshift != ""} {
+        loadredshift
+      }
+      if {$systems != ""} {
+        loadsystems
+      }
+      foreach i {offset intensity position fwhm} {
+        if {[set $i] != ""} {sendcommand  "$i=[set $i]"}
+      }
+      .variabili.estrai.check.c2.mean configure -text "mean $ordermean"
+      .variabili.estrai.check.c2.spline configure -text "spline $orderspline"
+      foreach i {filedat1 filedat2 filedat3} {
+        if {[set real$i] != ""} {
+          set $i [file tail [set real$i]]
+          mean [set real$i] $ordermean
+          set draw$i 1
+        }
+      }
+      update
+    }
+    .menu.file add separator
+    .menu.file add command -label "Print \[Ctrl-p\]" -underline 0 -command {
+      sendcommand  "set terminal postscript enhanced"
+      if { [info exists env(PRINTER)] } {
+        sendcommand  "set output '| lpr -P $env(PRINTER) '"
+        set barradistato "Printed: $env(PRINTER)"
+      } else {
+        sendcommand  "set output '| lpr '"
+        set barradistato "Printed"
+      }
+      sendcommand  "replot"
+      sendcommand  "set mouse; set terminal $terminal enhanced font \'$fonttype\'"
+      sendcommand  "set output"
+    }
+    .menu.file add separator
+    .menu.file add command -label "Quit \[Ctrl-q\]" -underline 0 -command { esci }
+
+.menu add cascade -label "Export" -underline 0 -menu .menu.export
+  menu .menu.export -tearoff 0
+    .menu.export add command -label "PS" -underline 0 -command {
+      set types {{"Postscript files" {.ps}} {"All files" *}}
+      if {[set filetmp [tk_getSaveFile -filetypes $types -initialdir [file dirname $fileps] -initialfile $fileps -parent .]] != ""} {
+        set fileps $filetmp
+        sendcommand  "set terminal postscript enhanced color \"$fonttype\" $fontsize"
+        sendcommand  "set output '$fileps'"
+        sendcommand  "replot"
+        sendcommand  "set mouse; set terminal $terminal enhanced font \'$fonttype\'"
+        sendcommand  "set output"
+        set fileps [file tail $filetmp]
+        set barradistato "Exported: $fileps"
+      }
+    }
+    .menu.export add command -label "Aqua" -underline 0 -command {
+      sendcommand  "set terminal aqua enhanced color \"$fonttype\" $fontsize"
+      sendcommand  "replot"
+      sendcommand  "set mouse; set terminal $terminal enhanced font \'$fonttype\'"
+      sendcommand  "set output"
+    }
+    .menu.export add command -label "EPS" -underline 0 -command {
+      set types {{"Encappsulated PS files" {.eps}} {"All files" *}}
+      if {[set filetmp [tk_getSaveFile -filetypes $types -initialdir [file dirname $fileeps] -initialfile $fileeps -parent .]] != ""} {
+        set fileeps $filetmp
+        sendcommand  "set terminal postscript eps enhanced color \"$fonttype\" $fontsize"
+        sendcommand  "set output '$fileeps'"
+        sendcommand  "replot"
+        sendcommand  "set mouse; set terminal $terminal enhanced font \'$fonttype\'"
+        sendcommand  "set output"
+        set fileeps [file tail $filetmp]
+        set barradistato "Exported: $fileeps"
+      }
+    }
+    .menu.export add command -label "PDF" -underline 1 -command {
+      set types {{"PDF files" {.pdf}} {"All files" *}}
+      if {[set filetmp [tk_getSaveFile -filetypes $types -initialdir [file dirname $filepdf] -initialfile $filepdf -parent .]] != ""} {
+        set filepdf $filetmp
+        sendcommand  "set terminal pdf enhanced fsize $fontsize linewidth $linewidth size 28cm,20cm"
+        sendcommand  "set output '$filepdf'"
+        sendcommand  "replot"
+        sendcommand  "set mouse; set terminal $terminal enhanced font \'$fonttype\'"
+        sendcommand  "set output"
+        set filepdf [file tail $filetmp]
+        set barradistato "Exported: $filepdf"
+      }
+    }
+    .menu.export add command -label "Jpeg" -underline 0 -command {
+      set types {{"JPEG files" {.jpg}} {"All files" *}}
+      if {[set filetmp [tk_getSaveFile -filetypes $types -initialdir [file dirname $filejpg] -initialfile $filejpg -parent .]] != ""} {
+        set filejpg $filetmp
+        sendcommand  "set terminal jpeg font $fonttype $fontsize size $dimension_bitmap"
+        sendcommand  "set output '$filejpg'"
+        sendcommand  "replot"
+        sendcommand  "set mouse; set terminal $terminal enhanced font \'$fonttype\'"
+        sendcommand  "set output"
+        set filejpg [file tail $filetmp]
+        set barradistato "Exported: $filejpg"
+      }
+    }
+    .menu.export add command -label "Png" -underline 2 -command {
+      set types {{"PNG files" {.png}} {"All files" *}}
+      if {[set filetmp [tk_getSaveFile -filetypes $types -initialdir [file dirname $filepng] -initialfile $filepng -parent .]] != ""} {
+        set filepng $filetmp
+        sendcommand  "set terminal png enhanced notransparent font $fonttype $fontsize size $dimension_bitmap"
+        sendcommand  "set output '$filepng'"
+        sendcommand  "replot"
+        sendcommand  "set mouse; set terminal $terminal enhanced font \'$fonttype\'"
+        sendcommand  "set output"
+        set filepng [file tail $filetmp]
+        set barradistato "Exported: $filepng"
+      }
+    }
+    .menu.export add command -label "GIF" -underline 1 -command {
+      set types {{"GIF files" {.gif}} {"All files" *}}
+      if {[set filetmp [tk_getSaveFile -filetypes $types -initialdir [file dirname $filegif] -initialfile $filegif -parent .]] != ""} {
+        set filepng $filetmp
+        sendcommand  "set terminal gif transparent enhanced font \'$fonttype\' $fontsize size $dimension_bitmap crop "
+        sendcommand  "set output '$filepng'"
+        sendcommand  "replot"
+        sendcommand  "set mouse; set terminal $terminal enhanced font \'$fonttype\'"
+        sendcommand  "set output"
+        set filepng [file tail $filetmp]
+        set barradistato "Exported: $filepng"
+      }
+    }
+    .menu.export add command -label "Fig" -underline 0 -command {
+      set types {{"FIG files" {.fig}} {"All files" *}}
+      if {[set filetmp [tk_getSaveFile -filetypes $types -initialdir [file dirname $filefig] -initialfile $filefig -parent .]] != ""} {
+        set filefig $filetmp
+        scan $dimension_bitmap "%d,%d" xsize ysize
+        sendcommand  "set terminal fig monochrome landscape size $xsize $ysize fontsize $fontsize depth 90"
+        sendcommand  "set output '$filefig'"
+        sendcommand  "replot"
+        sendcommand  "set mouse; set terminal $terminal enhanced font \'$fonttype\'"
+        sendcommand  "set output"
+        set filefig [file tail $filetmp]
+        set barradistato "Exported: $filefig"
+      }
+    }
+    .menu.export add command -label "SVG" -underline 0 -command {
+      set types {{"Scalable Vector Graphics" {.svg}} {"All files" *}}
+      if {[set filetmp [tk_getSaveFile -filetypes $types -initialdir [file dirname $filesvg] -initialfile $filesvg -parent .]] != ""} {
+        set filesvg $filetmp
+        sendcommand  "set terminal svg size $dimension_bitmap fname \"$fonttype\" fsize $fontsize enhanced"
+        sendcommand  "set output '$filesvg'"
+        sendcommand  "replot"
+        sendcommand  "set mouse; set terminal $terminal enhanced font \'$fonttype\'"
+        sendcommand  "set output"
+        set filesvg [file tail $filetmp]
+        set barradistato "Exported: $filesvg"
+      }
+    }
+    .menu.export add command -label "TGIF" -underline 1 -command {
+      set types {{"Tgif format" {.obj}} {"All files" *}}
+      if {[set filetmp [tk_getSaveFile -filetypes $types -initialdir [file dirname $fileobj] -initialfile $fileobj -parent .]] != ""} {
+        set fileobj $filetmp
+        sendcommand  "set terminal tgif landscape \"$fonttype\" $fontsize"
+        sendcommand  "set output '$fileobj'"
+        sendcommand  "replot"
+        sendcommand  "set mouse; set terminal $terminal enhanced font \'$fonttype\'"
+        sendcommand  "set output"
+        set fileobj [file tail $filetmp]
+        set barradistato "Exported: $fileobj"
+      }
+    }
+    .menu.export add command -label "TXT" -underline 0 -command {
+      set types {{"Text files" {.txt .csv}} {"All files" *}}
+      if {[set filetmp [tk_getSaveFile -filetypes $types -initialdir [file dirname $filetxt] -initialfile $filetxt -parent .]] != ""} {
+        set filetxt $filetmp
+        sendcommand  "set table '$filetxt'"
+        sendcommand  "replot"
+        sendcommand  "unset table"
+        set filetxt [file tail $filetmp]
+        set barradistato "Exported: $filetxt"
+      }
+    }
+    .menu.export add command -label "Gnuplot" -underline 0 -command {
+      set types {{"Gnuplot files" {.gnu}} {"All files" *}}
+      if {[set filetmp [tk_getSaveFile -filetypes $types -initialdir [file dirname $filegnu] -initialfile $filegnu -parent .]] != ""} {
+        sendcommand  "save '$filetmp'"
+        set filegnu [file tail $filetmp]
+        set barradistato "Exported: $filegnu"
+        after 2000 {file attributes $filegnu -permissions u+x}
+      }
+    }
+
+
+.menu add cascade -label "Settings" -underline 2 -menu .menu.settings
+  menu .menu.settings -tearoff 0
+    .menu.settings add command -label "Bitmap size" -underline 0 -command {
+      set w .dimension
+      set c $w.c
+      catch {destroy $w}
+      toplevel $w
+      wm title $w "IdentificaPostProcessor Dimension"
+      wm iconname $w "IPP Dimension"
+      set x [winfo pointerx .]
+      set y [winfo pointery .]
+      set pos [format "+%i+%i" $x $y]
+      wm geometry $w $pos
+      set i {dimension_bitmap}
+      frame $w.$i -bd 2 -relief groove
+        frame $w.$i.a
+          label $w.$i.a.bitmap -bitmap question
+          label $w.$i.a.lab -text "Bitmap size" -anchor e
+          pack $w.$i.a.bitmap $w.$i.a.lab -side left
+          entry $w.$i.val -textvariable $i -width 10
+        pack  $w.$i.a $w.$i.val -expand yes -fill x
+      pack $w.$i -expand yes -fill both
+      focus -force $w.$i.val
+    }
+    .menu.settings add separator
+    .menu.settings add command -label "Font Type" -underline 0 -command {
+      set w .fonttype
+      set c $w.c
+      catch {destroy $w}
+      toplevel $w
+      wm title $w "IdentificaPostProcessor Font"
+      wm iconname $w "IPP Font"
+      set x [winfo pointerx .]
+      set y [winfo pointery .]
+      set pos [format "+%i+%i" $x $y]
+      wm geometry $w $pos
+      foreach i {fonttype fontsize} {
+        frame $w.$i -bd 2 -relief groove
+          frame $w.$i.a
+            label $w.$i.a.bitmap -bitmap question
+            label $w.$i.a.lab -text "$i" -anchor e
+            pack $w.$i.a.bitmap $w.$i.a.lab -side left
+            entry $w.$i.val -textvariable $i -width 10
+          pack  $w.$i.a $w.$i.val -expand yes -fill x
+        pack $w.$i -expand yes -fill both
+      }
+    }
+    .menu.settings add command -label "Mean and Spline order" -underline 0 -command {
+      set w .mean
+      set c $w.c
+      catch {destroy $w}
+      toplevel $w
+      set oldmean $ordermean
+      wm title $w "IdentificaPostProcessor orders"
+      wm iconname $w "IPP mean"
+      set x [winfo pointerx .]
+      set y [winfo pointery .]
+      set pos [format "+%i+%i" $x $y]
+      wm geometry $w $pos
+      foreach {i j} {ordermean "Mean order" orderspline "Spline points"} {
+        frame $w.$i -bd 2 -relief groove  -pady 5
+          frame $w.$i.a
+            label $w.$i.a.lab -text "$j" -anchor e
+            pack $w.$i.a.lab -side left
+            spinbox $w.$i.val -textvariable $i -width 10 -from 1 -to 10000
+          pack  $w.$i.a $w.$i.val -expand yes -fill x
+        pack $w.$i -expand yes -fill both
+      }
+      wm protocol $w WM_DELETE_WINDOW {
+        catch {destroy $w}
+        .variabili.estrai.check.c2.mean configure -text "mean $ordermean"
+        .variabili.estrai.check.c2.spline configure -text "spline $orderspline"
+        if {$ordermean != $oldmean} {
+          foreach i {filedat1 filedat2 filedat3} {
+            if { [set real$i] != ""} {
+              mean [set real$i] $ordermean
+              set draw$i 1
+            }
+          }
+        }
+      }
+    }
+    .menu.settings add command -label "Label format" -underline 0 -command {
+      set w .format
+      set c $w.c
+      catch {destroy $w}
+      toplevel $w
+      wm title $w "IdentificaPostProcessor Format"
+      wm iconname $w "IPP Format"
+      set x [winfo pointerx .]
+      set y [winfo pointery .]
+      set pos [format "+%i+%i" $x $y]
+      wm geometry $w $pos
+      label $w.titolo -text "Axes format"
+      pack $w.titolo -fill x -expand y
+      foreach i {x y z mouse} {
+        frame $w.format$i -bd 2 -relief groove
+          label $w.format$i.lab -text "$i" -anchor c -width 7
+          entry $w.format$i.val -textvariable format$i -width 10
+          pack $w.format$i.lab $w.format$i.val -side left -expand y -fill both
+        pack $w.format$i -expand yes -fill both
+      }
+      foreach i {zoom linewidth} {
+        frame $w.format$i -bd 2 -relief groove
+          label $w.format$i.lab -text "$i" -anchor c -width 7
+          entry $w.format$i.val -textvariable $i -width 10
+          pack $w.format$i.lab $w.format$i.val -side left -expand y -fill both
+        pack $w.format$i -expand yes -fill both
+      }
+      frame $w.with
+      foreach i {lines histeps} {
+        radiobutton $w.with.$i -text "$i" -variable with -value "$i"
+        pack  $w.with.$i -expand y
+      }
+      $w.with.lines select
+      pack $w.with -expand y
+    }
+    .menu.settings add separator
+    .menu.settings add command -label "Clear LogBox" -underline 0 -command {
+      .text.text delete 0.0 end
+      set barradistato "LogBox cleared"
+    }
+
+    foreach i {filedat1 filedat2 filedat3} {
+      .menu.settings add command -label "$i Color" -underline 0 -command "cambiacolor $i"
+    }
+    .menu.settings add command -label "GUI Color" -underline 0 -command {
+      if {[set colortemp [tk_chooseColor -initialcolor $colorgui]] != ""} {
+        set colorgui $colortemp
+        tk_setPalette "$colorgui"
+      }
+    }
+    
+    .menu.settings add separator
+    .menu.settings add command -label "Reset !" -underline 0 -command {
+      inizializza
+      schiaccia .disegna
+    }
+
+
+.menu add cascade -label "Tools" -underline 0 -menu .menu.tools
+  menu .menu.tools -tearoff 0
+    .menu.tools add command -label "Notepad" -underline 0 -command { blocconote }
+    .menu.tools add command -label "Grid" -underline 0 -command {makegrid}
+    .menu.tools add command -label "Edit Redshift" -underline 0 -command {editit redshift}
+    .menu.tools add command -label "Edit Systems" -underline 0 -command {editit systems}
+    .menu.tools add command -label "Simulate line" -underline 0 -command {sendcommand  "print \"simulariga\""}
+    .menu.tools add command -label "Integrate under" -underline 0 -command {integrale}
+    .menu.tools add command -label "Fit tool" -underline 0 -command {voigt}
+
+
+
+.menu add cascade -label "Help" -underline 0 -menu .menu.help
+  menu .menu.help -tearoff 0
+    .menu.help add command -label "About" -command { about }
+. configure -menu .menu
+
+bind . <Control-d> {schiaccia .disegna}
+bind . <Meta-d> {schiaccia .disegna}
+bind . <Alt-d> {schiaccia .disegna}
+
+bind . <Control-o> {.menu.file invoke 0}
+bind . <Control-s> {.menu.file invoke 1}
+bind . <Control-r> {.menu.file invoke 3}
+bind . <Control-p> {.menu.file invoke 5}
+bind . <Control-q> {.menu.file invoke 7}
+
+inizializza
+
+if {[set filetmp [lindex $argv 0]] != ""} {
+  if {[file exists $filetmp]} {
+  } else {
+    tk_messageBox -icon error -type ok -message "File $filetmp\n doesn't exists!" -title "Alert"
+  }
+}
+
+
+if {[set filetmp [lindex $argv 0]] != ""} {
+  if {[file exists $filetmp]} {
+    set realfileipp "$filetmp"
+    set fileipp [file tail $filetmp]
+    update
+    .menu.file invoke 3
+    schiaccia .disegna
+    if {$ruler} {sendcommand  "set mouse ruler at $rulerx, $rulery"}
+  }
+} else {
+  set filetmp "$env(HOME)/.identifica.ipp"
+  if {[file exists $filetmp]} {
+    set answer [tk_messageBox -type okcancel -icon question -title "Not found" -message "Reopen last session?"]
+    if {$answer=="ok"} {
+      set realfileipp "$filetmp"
+      set fileipp [file tail $filetmp]
+      update
+      .menu.file invoke 3
+      schiaccia .disegna
+      if {$ruler} {sendcommand  "set mouse ruler at $rulerx, $rulery"}
+    }
+  }
+}
+
+update 
