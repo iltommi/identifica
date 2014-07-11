@@ -1,0 +1,72 @@
+set mouse
+set terminal x11 title "Spectrum Post Processor" enhanced font 'luxisr'
+set mouse zoomjump
+set mouse mouseformat "%g %g"
+set mouse clipboardformat "%g %g"
+set grid back
+bind F1 replot
+set colorbox horizontal user origin 0.1,0.95 size 0.8,0.015
+set autoscale fix
+set key outside samplen 1.
+set fit errorvariables
+bind a 'print "autoranges ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'
+bind s 'print "savecoord"'
+bind b 'print "restorecoord"'
+bind g 'print "grid"'
+bind m 'print "mean"'
+bind S 'print "spline"'
+bind Left  'print "ranges l ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'
+bind Right 'print "ranges r ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'
+bind Up    'print "ranges u ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'
+bind Down  'print "ranges d ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'
+bind i     'print "ranges i ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'
+bind o     'print "ranges o ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'
+bind x     'print "ranges x ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'
+bind y     'print "ranges y ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'
+bind X     'print "ranges X ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'
+bind Y     'print "ranges Y ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'
+bind "ctrl-x" 'print "ranges cx ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'
+bind "ctrl-y" 'print "ranges cy ",GPVAL_X_MIN,GPVAL_X_MAX,GPVAL_Y_MIN,GPVAL_Y_MAX'
+bind 7 ''
+bind h 'print "help"'
+bind d 'print "redraw"'
+bind f 'print "fit"'
+bind w 'print "simulariga"'
+bind I 'print "integrale0"'
+bind Return 'print "redraw"'
+bind q 'print "quit"'
+bind v 'print "mainwindow"'
+bind l 'print "voigt"
+bind "ctrl-s" 'print "save"'
+bind t 'print "mouse ",MOUSE_X,MOUSE_Y,MOUSE_RULER_X,MOUSE_RULER_Y'
+bind Button1 'print "Button1 ",MOUSE_X,MOUSE_Y,MOUSE_RULER_X,MOUSE_RULER_Y'
+set mouse verbose
+set style line 1  lt 1  lc rgb "red"   
+set style line 2  lt 2  lc rgb "orange"
+set style line 3  lt 3  lc rgb "dark-yellow"
+set style line 4  lt 4  lc rgb "green" 
+set style line 5  lt 5  lc rgb "cyan"  
+set style line 6  lt 6  lc rgb "blue"  
+set style line 7  lt 7  lc rgb "violet"
+set style line 8  lt 8  lc rgb "pink" 
+set style line 9  lt 9  lc rgb "gray"
+set style line 10 lt 10 lc rgb "brown"
+set style increment user
+g(x)=meanvalue
+bind c 'print "meanvaluesigma"'
+set format x '% g'
+set format y '% g'
+set mouse format '% g'
+set mouse mouseformat '% g,% g'
+set mouse; set terminal x11 title "Spectrum Post Processor" enhanced font 'luxisr'
+set xlabel "Angstrom"
+set ylabel "Arbitrary Units"
+set title "050908n.dat 050908t.dat "
+set xrange [6511.86299545:7003.3568953] noreverse
+set yrange [0.272838872694:1.07695394373] noreverse
+set grid front
+
+
+set samples 2000
+f(x)=offset+intensity*exp(-2.773*((x-position)/fwhm)**2)
+plot  '/Volumes/HDD/tommaso/susy/050908n.dat' using ($1):($2) notitle with lines lw 1 lc rgb "black" , '/Volumes/HDD/tommaso/susy/050908t.dat' using ($1):($2) notitle with lines lw 1 lc rgb "black"

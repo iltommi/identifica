@@ -679,7 +679,7 @@ proc sendcommand {stringa} {
 }
 
 proc integrale {} {
-  global gnuplot mean
+  global gnuplot mean gnuplot_exe
   foreach i {1 2 3} {
     global drawfiledat$i
     if {[set drawfiledat$i]} {
@@ -689,7 +689,7 @@ proc integrale {} {
       } else {
     set filetointegrate ${realfiledat1}
       }
-      set gnuplot3 [ open "| tee debug | gnuplot -ctrlq 2>@stdout" w+ ]
+      set gnuplot3 [ open "| tee debug | $gnuplot_exe -ctrlq 2>@stdout" w+ ]
       puts $gnuplot3 "set table '/tmp/identifica${i}.txt'; plot '$filetointegrate' using [set using$i]; unset table"
       close $gnuplot3
     }
@@ -1196,7 +1196,8 @@ proc controlla {fp} {
         global barradistato
         scan $linea "integrale %d" num
         set barradistato "Click to the point $num"
-        sendcommand "pause mouse; print \"punto $num \", MOUSE_X, MOUSE_Y"
+        puts ">>>>>>>>>>>>>>>> $linea"
+        sendcommand "pause mouse any; print \"punto $num \", MOUSE_X, MOUSE_Y"
       }
       "punto" {
         global barradistato
@@ -1398,11 +1399,11 @@ proc mean {filetmp order} {
 }
 
 proc inizializza {} {
-  global gnuplot fonttype fontsize dimension_bitmap terminal
+  global gnuplot gnuplot_exe fonttype fontsize dimension_bitmap terminal
 
   catch {close $gnuplot}
 
-  set gnuplot [ open "| tee debug | gnuplot -ctrlq 2>@stdout" w+ ]
+  set gnuplot [ open "| tee debug | $gnuplot_exe -ctrlq 2>@stdout" w+ ]
   sendcommand  "set mouse"
   sendcommand  "set terminal $terminal enhanced font \'$fonttype\'"
   sendcommand  "set mouse zoomjump"
@@ -1524,7 +1525,10 @@ proc cambiacolor {i} {
 
 ################################################################################
 
-set gnuplot2 [ open "| gnuplot -ctrlq 2>@stdout" w+ ]
+set gnuplot_exe "/opt/local/bin/gnuplot"
+
+set gnuplot2 [ open "| $gnuplot_exe -ctrlq 2>@stdout" w+ ]
+
 fileevent $gnuplot2 readable {controlla $gnuplot2}
 
 
